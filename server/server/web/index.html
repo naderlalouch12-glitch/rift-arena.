@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rift Arena Community</title>
+<meta name="description" content="Chat with Rift Arena players around the world and report problems with the game.">
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/app.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#home" aria-label="Rift Arena home"><img src="/media/icon.webp" alt="" width="36" height="36"><span>RIFT <b>ARENA</b></span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="#home" data-nav="home">Home</a>
+      <a href="#chat" data-nav="chat">Chat</a>
+      <a href="#report" data-nav="report">Report<span class="lg"> a problem</span></a>
+      <a href="#track" data-nav="track"><span class="lg">My tickets</span><span class="sm">Tickets</span></a>
+    </nav>
+    <span class="live" id="live" title="People on the site and in matches right now"><i></i><b id="liveN">–</b> online</span>
+  </div>
+</header>
+
+<main>
+<!-- ============================== HOME ============================== -->
+<section class="view" id="v-home">
+  <div class="hero">
+    <div class="hero-in">
+      <div class="hero-copy">
+        <p class="eyebrow">Community hub</p>
+        <h1>The rift is open.<br><span>Come say hi.</span></h1>
+        <p class="lede">Team up with players from every region, swap tips with other Rift Arena fans, and tell us when something breaks. Every report gets a ticket you can follow until it is fixed.</p>
+        <div class="cta">
+          <a class="btn primary" href="#chat">Join the chat</a>
+          <a class="btn ghost" href="#report">Report a problem</a>
+        </div>
+      </div>
+      <div class="hero-media">
+        <video id="trailer" poster="/media/poster.webp" controls playsinline preload="none"></video>
+        <span class="tag" id="trailerTag">Official trailer · 0:55</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="stats" aria-label="Live numbers">
+      <div class="stat"><b id="s-play">–</b><span>in matches now</span></div>
+      <div class="stat"><b id="s-chat">–</b><span>in chat now</span></div>
+      <div class="stat"><b id="s-open">–</b><span>tickets being worked on</span></div>
+      <div class="stat"><b id="s-fixed">–</b><span>problems fixed</span></div>
+    </div>
+
+    <h2 class="sec">Ranked leaderboard</h2>
+    <p class="sec-sub">Season 1 · climb from Bronze to <b>Void Emperor</b>. Log in inside the game to play Ranked.</p>
+    <div class="lb" id="lb"><p class="muted">No ranked matches yet. Be the first on the board!</p></div>
+
+    <h2 class="sec">Pick your main</h2>
+    <p class="sec-sub">Your chat badge shows the hero you play most. Change it any time.</p>
+    <div class="roster" id="roster"></div>
+
+    <div class="split">
+      <div class="panel">
+        <h3>Chat rules</h3>
+        <ul class="rules">
+          <li><b>Be kind.</b> Players of every age hang out here.</li>
+          <li><b>Keep it private.</b> Never share your real name, address, phone number or passwords. The chat blocks e-mail addresses and phone numbers for you.</li>
+          <li><b>No links.</b> Links are blocked so nobody gets tricked into a fake site.</li>
+          <li><b>See something bad?</b> Tap the flag on the message. A moderator gets a ticket right away.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Before you report</h3>
+        <ul class="rules">
+          <li><b>Update the game.</b> Many problems are already fixed in the newest version.</li>
+          <li><b>One problem per report.</b> It helps us fix each one faster.</li>
+          <li><b>Add a screenshot</b> if you can. Press <kbd>PrtSc</kbd> on Windows.</li>
+          <li><b>Save your ticket code.</b> You need it to check on your report.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CHAT ============================== -->
+<section class="view" id="v-chat" hidden>
+  <div class="chat">
+    <aside class="chans" aria-label="Channels">
+      <div class="chans-h">Topics</div><div id="ch-topics"></div>
+      <div class="chans-h">Regions</div><div id="ch-regions"></div>
+    </aside>
+    <div class="room">
+      <div class="room-h">
+        <select id="chSelect" aria-label="Channel"></select>
+        <div class="room-t"><h2 id="roomName"># global</h2><span id="roomDesc">Everyone, everywhere</span></div>
+        <span class="room-n" id="roomCount"></span>
+      </div>
+      <div class="msgs" id="msgs" aria-live="polite"></div>
+      <form class="composer" id="composer" autocomplete="off">
+        <input id="say" maxlength="300" placeholder="Say something nice…" aria-label="Message" disabled>
+        <button class="btn primary" id="sendBtn" disabled>Send</button>
+      </form>
+      <p class="hint" id="chatHint">Connecting to chat…</p>
+    </div>
+    <aside class="people" aria-label="Online in this channel">
+      <div class="chans-h">Online here</div>
+      <div id="peopleList"></div>
+    </aside>
+  </div>
+
+  <div class="modal" id="joinModal" hidden>
+    <form class="modal-card" id="joinForm" autocomplete="off">
+      <h2>Pick a chat name</h2>
+      <p class="muted">Use a nickname, not your real name.</p>
+      <label for="nick">Nickname</label>
+      <input id="nick" maxlength="16" minlength="3" required placeholder="e.g. ThunderFox">
+      <label>Your main hero</label>
+      <div class="pick" id="heroPick"></div>
+      <p class="err" id="joinErr" hidden></p>
+      <button class="btn primary wide">Enter chat</button>
+    </form>
+  </div>
+</section>
+
+<!-- ============================== REPORT ============================== -->
+<section class="view" id="v-report" hidden>
+  <div class="wrap narrow">
+    <p class="eyebrow">Support</p>
+    <h1 class="pg">Report a problem</h1>
+    <p class="lede">Tell us what went wrong. You'll get a ticket number and a private code so you can follow it.</p>
+
+    <form id="repForm" class="form" novalidate>
+      <fieldset>
+        <legend>What kind of problem?</legend>
+        <div class="cats" id="cats"></div>
+      </fieldset>
+
+      <div class="field">
+        <label for="r-title">Short title</label>
+        <input id="r-title" maxlength="90" required placeholder="Game freezes when Mika uses Event Horizon">
+      </div>
+      <div class="field">
+        <label for="r-details">What happened?</label>
+        <textarea id="r-details" rows="5" maxlength="4000" required placeholder="What did you expect, and what happened instead?"></textarea>
+      </div>
+      <div class="field">
+        <label for="r-steps">How can we make it happen again? <i>optional</i></label>
+        <textarea id="r-steps" rows="3" maxlength="2000" placeholder="1. Pick Mika&#10;2. Start Battle Royale&#10;3. Use the ultimate near a wall"></textarea>
+      </div>
+
+      <div class="grid3">
+        <div class="field"><label for="r-platform">Device</label>
+          <select id="r-platform"><option>Windows PC</option><option>Steam Deck</option><option>Linux</option><option>Mac</option><option>iPhone / iPad</option><option>Web browser</option></select></div>
+        <div class="field"><label for="r-mode">Game mode</label>
+          <select id="r-mode"><option value="">Not about a mode</option><option>Waves</option><option>Free for all</option><option>Raid</option><option>3v3</option><option>5v5</option><option>Battle Royale</option><option>Shop or menus</option></select></div>
+        <div class="field"><label for="r-hero">Hero</label>
+          <select id="r-hero"><option value="">Any / none</option><option>Kaito</option><option>Yuki</option><option>Goro</option><option>Akane</option><option>Mika</option></select></div>
+      </div>
+
+      <div class="grid2">
+        <div class="field"><label for="r-version">Game version <i>optional</i></label><input id="r-version" maxlength="20" placeholder="1.0.0"></div>
+        <div class="field"><label for="r-contact">Contact for a reply <i>optional</i></label><input id="r-contact" maxlength="120" placeholder="E-mail or Steam name"><small>Only the team sees this. It is never shown publicly.</small></div>
+      </div>
+
+      <div class="field">
+        <label>Screenshot <i>optional</i></label>
+        <label class="drop" id="drop" for="r-shot">
+          <input type="file" id="r-shot" accept="image/png,image/jpeg,image/webp">
+          <img id="shotPrev" alt="" hidden>
+          <span id="dropTxt">Drop an image here or <u>choose a file</u> (PNG, JPG or WEBP, up to 1.8 MB)</span>
+        </label>
+      </div>
+      <input class="hp" id="r-website" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+      <p class="err" id="repErr" hidden></p>
+      <button class="btn primary wide" id="repBtn">Send report</button>
+    </form>
+
+    <div class="done panel" id="repDone" hidden>
+      <div class="done-badge">✓</div>
+      <h2>Report received</h2>
+      <p>Save these two things. You need both to check on your report.</p>
+      <div class="ticket">
+        <div><span>Ticket number</span><b id="tkId"></b></div>
+        <div><span>Private code</span><b id="tkKey"></b></div>
+        <button class="btn ghost" id="tkCopy" type="button">Copy both</button>
+      </div>
+      <p class="muted">We also saved this ticket in this browser under <a href="#track">My tickets</a>.</p>
+      <button class="btn ghost" id="repAgain" type="button">Report another problem</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== TRACK ============================== -->
+<section class="view" id="v-track" hidden>
+  <div class="wrap narrow">
+    <p class="eyebrow">Support</p>
+    <h1 class="pg">My tickets</h1>
+    <form class="lookup" id="lookForm" autocomplete="off">
+      <div class="field"><label for="l-id">Ticket number</label><input id="l-id" placeholder="RA-3F9C21" maxlength="9" required></div>
+      <div class="field"><label for="l-key">Private code</label><input id="l-key" placeholder="12 letters and numbers" maxlength="12" required></div>
+      <button class="btn primary">Check status</button>
+    </form>
+    <p class="err" id="lookErr" hidden></p>
+    <div id="lookOut"></div>
+    <h3 class="mine-h">Saved in this browser</h3>
+    <div id="mine"></div>
+  </div>
+</section>
+
+<!-- ============================== ADMIN ============================== -->
+<section class="view" id="v-staff" hidden>
+  <div class="wrap">
+    <p class="eyebrow">Team only</p>
+    <h1 class="pg">Ticket desk</h1>
+    <form class="lookup" id="admForm" autocomplete="off">
+      <div class="field"><label for="admKey">Admin key</label><input id="admKey" type="password" required></div>
+      <button class="btn primary">Open desk</button>
+    </form>
+    <p class="err" id="admErr" hidden></p>
+    <div id="desk" hidden>
+      <div class="filters" id="filters"></div>
+      <div id="deskList"></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="foot-in">
+    <span>© Rift Arena</span>
+    <span>Be kind · Stay safe · Have fun</span>
+    <a href="#staff">Team login</a>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "rift-arena-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rift Arena matchmaking and match relay (3v3, 5v5, Battle Royale)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.23.0"
+  }
+}
