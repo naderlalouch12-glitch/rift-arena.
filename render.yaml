@@ -1,0 +1,24 @@
+# One-click deploy on Render (render.com): New > Blueprint > pick this repository.
+# Runs the game server (matchmaking for 3v3, 5v5, Battle Royale) and the community website on one address.
+#
+# This starts on Render's FREE plan:
+#   - free web services go to sleep after 15 minutes with nobody on them; the first visitor after that waits
+#     about a minute while it wakes up.
+#   - bug reports, chat history and screenshots are wiped when the server restarts or redeploys.
+# When players arrive, switch the service to the "Starter" plan in Render (a few dollars a month): it never sleeps.
+# To also keep reports and chat for good, add a disk (Render > your service > Disks, mount path /var/data)
+# and set DATA_DIR to /var/data under Environment.
+services:
+  - type: web
+    name: rift-arena
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/status
+    envVars:
+      - key: ADMIN_TOKEN        # your key for the Team login (ticket desk + chat moderation). Render makes a random one; find it under Environment.
+        generateValue: true
+      - key: TRUST_PROXY        # Render sits in front of the server, so trust its forwarded IP for rate limits
+        value: "1"
