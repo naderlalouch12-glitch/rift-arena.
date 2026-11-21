@@ -94,6 +94,15 @@ small { display: block; color: var(--muted); font-size: 13px; margin-top: 5px }
 .rules li::before { content: ''; position: absolute; left: 2px; top: .6em; width: 8px; height: 8px; border-radius: 2px; transform: rotate(45deg); background: var(--magenta) }
 .rules b { color: var(--text) }
 
+/* ---------- ranked leaderboard */
+.lb { display: grid; gap: 8px; margin-bottom: 56px }
+.lb-row { display: grid; grid-template-columns: 56px 1fr auto auto auto; gap: 16px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--c); border-radius: 12px; padding: 12px 18px }
+.lb-row b { font: 700 18px var(--h); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.lb-pos { font: 900 italic 22px var(--h); color: var(--muted) }
+.lb-tier { color: var(--c); font: 900 italic 18px var(--h) }
+.lb-rp { font: 700 16px var(--h); font-variant-numeric: tabular-nums }
+@media (max-width: 760px) { .lb-row { grid-template-columns: 44px 1fr auto; } .lb-row .muted, .lb-row .lb-rp { display: none } }
+
 /* ---------- chat */
 .chat { display: grid; grid-template-columns: 230px 1fr 210px; height: calc(100vh - 57px); min-height: 480px; max-width: 1400px; margin: 0 auto; border-left: 1px solid var(--line); border-right: 1px solid var(--line) }
 .chans, .people { background: var(--deep); overflow-y: auto; padding: 16px 10px }

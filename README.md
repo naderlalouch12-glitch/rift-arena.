@@ -4,7 +4,9 @@ The online server for **Rift Arena**. One small Node.js program runs three thing
 
 - **Matchmaking** for the online modes: 3v3, 5v5 and Battle Royale. It only matches players whose fighter levels are within 10 of each other, and it balances teams by level.
 - **Live match relay**: passes each player's movement and hits to the others in the match.
-- **The community website**: a home page, a global chat with topic and region channels, a "Report a problem" form with ticket tracking, and a team desk for moderators.
+- **Player accounts and cloud saves**: players log in with a name and password (no e-mail, safe for kids) and their progress follows them to any device. Sign-up gives a one-time recovery code for forgotten passwords.
+- **Ranked 3v3**: rank points are kept on the server, so nobody can fake a rank. Tiers: Bronze, Silver, Gold, Platinum, Diamond, Rift Master and **Void Emperor**. The server counts the knockouts and decides who won.
+- **The community website**: a home page with the Ranked leaderboard, a global chat with topic and region channels, a "Report a problem" form with ticket tracking, and a team desk for moderators.
 
 ## What's in this repository
 
@@ -13,6 +15,8 @@ The online server for **Rift Arena**. One small Node.js program runs three thing
 | `render.yaml` | Settings for one-click hosting on Render (free plan). |
 | `server/server.js` | Matchmaking and match relay (WebSocket). |
 | `server/community.js` | Website, chat, problem reports and the moderator API. |
+| `server/accounts.js` | Player accounts, cloud saves, Ranked points and the leaderboard. |
+| `server/test-ranked.js` | Automatic tests for accounts, cloud saves and Ranked. |
 | `server/web/` | The website's pages, styles, images and fonts. |
 | `server/test-server.js` | Automatic tests for matchmaking. |
 
@@ -57,18 +61,32 @@ npm install
 ADMIN_TOKEN=pick-a-long-secret node server.js
 ```
 
-Open http://localhost:8787. To run the matchmaking tests:
+Open http://localhost:8787. To run the tests:
 
 ```bash
 cd server
 node test-server.js
+node test-ranked.js
 ```
+
+## Ranked rules
+
+| Result | Rank points |
+|---|---|
+| Win | +25, plus up to +10 on a win streak |
+| Loss | -20 (never below 0) |
+| A teammate quits | Your loss is only -5 |
+| You quit | -30 |
+| First 5 matches (placements) | Everything x1.6, so new players find their level fast |
+| Just promoted | A rank shield: the next 3 losses can't drop you out of your new tier |
+
+Tiers are 500 RP apart: Bronze 0, Silver 500, Gold 1000, Platinum 1500, Diamond 2000, Rift Master 2500, Void Emperor 3000+.
 
 ## Free plan: good to know
 
 - The server **sleeps after 15 minutes** with nobody on it. The next visitor waits about a minute while it wakes up.
-- **Tickets, chat history and screenshots are cleared** when the server restarts or redeploys.
-- When real players arrive, switch the service to Render's **Starter** plan (a few dollars a month). It never sleeps. To keep tickets and chat for good, also add a **Disk** (mount path `/var/data`) and set `DATA_DIR` to `/var/data`.
+- **Accounts, ranks, tickets and chat history are cleared** when the server restarts or redeploys. That's fine for testing, but **before real players make accounts, add a Disk** (below), or their accounts will disappear.
+- **Before launch:** switch the service to Render's **Starter** plan (a few dollars a month; it never sleeps), add a **Disk** (Render → your service → Disks, mount path `/var/data`, 1 GB is plenty) and set `DATA_DIR` to `/var/data` under Environment. Now accounts, ranks, tickets and chat are kept for good.
 
 ## Website addresses
 
@@ -80,6 +98,8 @@ node test-server.js
 | `/api/reports` | Send a problem report (POST) |
 | `/api/reports/RA-XXXXXX?key=…` | A player checks their ticket |
 | `/api/admin/…` | Moderator tools (need the `x-admin-token` header) |
+| `/api/account/…` | Sign up, log in, recovery, cloud save (used by the game) |
+| `/api/ranked/top` | The Ranked leaderboard (top 50) |
 
 Matchmaking uses a WebSocket connection to `/`.
 

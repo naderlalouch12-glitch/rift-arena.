@@ -15,6 +15,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const { WebSocketServer } = require('ws');
+const accounts = require('./accounts'); // player accounts, cloud saves, ranked
 
 const WEB = path.join(__dirname, 'web');
 const DATA = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -25,11 +26,13 @@ const TRUST_PROXY = !!process.env.TRUST_PROXY; // set when running behind Render
 
 // ---------------------------------------------------------------- storage
 function load(f, d) { try { return JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8')); } catch (e) { return d; } }
-const pending = new Set();
+const pending = new Map(); // file -> latest value waiting to be written
+const writeFile = (f, v) => { const tmp = path.join(DATA, f + '.tmp'); fs.writeFileSync(tmp, JSON.stringify(v)); fs.renameSync(tmp, path.join(DATA, f)); };
 function save(f, v) {
-  if (pending.has(f)) return; pending.add(f);
-  setTimeout(() => { pending.delete(f); const tmp = path.join(DATA, f + '.tmp'); fs.writeFileSync(tmp, JSON.stringify(v)); fs.renameSync(tmp, path.join(DATA, f)); }, 400);
+  const had = pending.has(f); pending.set(f, v); if (had) return;
+  setTimeout(() => { if (!pending.has(f)) return; const val = pending.get(f); pending.delete(f); writeFile(f, val); }, 400);
 }
+function flush() { for (const [f, v] of pending) writeFile(f, v); pending.clear(); }
 const reports = load('reports.json', []);
 const CHANNELS = [
   { id: 'global', name: 'Global', desc: 'Everyone, everywhere' },
@@ -169,6 +172,7 @@ const isAdmin = req => ADMIN && req.headers['x-admin-token'] && crypto.timingSaf
 async function handle(req, res, stats) {
   const u = new URL(req.url, 'http://x'), p = u.pathname, ip = hashIp(ipOf(req));
   try {
+    if (await accounts.handle(req, res, p, ip, allow, SEC)) return;
     if (p === '/api/status' && req.method === 'GET')
       return json(res, 200, { chat: people.size, players: stats ? stats() : 0, open: reports.filter(r => r.status === 'open' || r.status === 'investigating').length, fixed: reports.filter(r => r.status === 'fixed').length, channels: counts(), trailer: fs.existsSync(path.join(WEB, 'media', 'trailer.mp4')) });
     if (p === '/api/reports' && req.method === 'POST') {
@@ -218,4 +222,4 @@ async function handle(req, res, stats) {
   } catch (e) { return json(res, 400, { error: 'That request could not be read. Please try again.' }); }
 }
 
-module.exports = { handle, chatWss: wss, CATS };
+module.exports = { handle, chatWss: wss, CATS, flush };

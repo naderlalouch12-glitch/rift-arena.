@@ -298,4 +298,17 @@ api('/api/status').then(s => {
   const img = el('img'); img.src = '/media/poster.webp'; img.alt = 'Rift Arena: Void Emperor Kaito unleashes the Abyss Blade';
   img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block'; v.replaceWith(img); $('trailerTag').textContent = 'Void Emperor Kaito · Abyss Blade';
 }).catch(() => {});
+// Ranked leaderboard: the top 10 players this season.
+async function refreshBoard() {
+  try {
+    const t = await api('/api/ranked/top'), box = $('lb'); if (!t.players.length) return;
+    box.textContent = '';
+    for (const p of t.players.slice(0, 10)) {
+      const r = el('div', 'lb-row'); r.style.setProperty('--c', p.color);
+      r.append(el('span', 'lb-pos', '#' + p.pos), el('b', null, p.name), el('span', 'lb-tier', p.tier), el('span', 'lb-rp', p.rp + ' RP'), el('span', 'muted', p.wins + 'W ' + p.losses + 'L'));
+      box.append(r);
+    }
+  } catch (e) { /* server not reachable: keep the placeholder */ }
+}
+refreshBoard(); setInterval(refreshBoard, 60000);
 renderRoster(); renderCats(); Staff.init(); route(); refreshStats(); setInterval(refreshStats, 15000);
