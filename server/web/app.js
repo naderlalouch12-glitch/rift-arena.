@@ -67,11 +67,15 @@ const Chat = (() => {
   function connect() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(`${proto}//${location.host}/chat`);
-    ws.onopen = () => { retry = 0; hint('Connected.'); if (myName) send({ t: 'join', name: myName, hero: myHero, ch: cur }); else askName(); };
+    ws.onopen = () => { retry = 0; hint('Connected.'); if (myName || acct()) send(joinMsg(myName)); else askName(); };
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } on(m); };
     ws.onclose = () => { joined = false; setInput(false); const wait = Math.min(15000, 1000 * 2 ** retry++); hint(`Chat disconnected. Reconnecting in ${Math.round(wait / 1000)} s…`, true); setTimeout(connect, wait); };
   }
   const send = o => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); };
+  // optional game-account login: verified name, and Developers get the DEV badge. The Team admin key counts as Developer too.
+  const acct = () => store.get('acct', '');
+  const joinMsg = name => ({ t: 'join', name, hero: myHero, ch: cur, token: acct() || undefined, admin: (typeof Staff !== 'undefined' && Staff.key) || undefined });
+  const devTag = () => { const t = el('span', 'devtag', 'DEV'); t.title = 'Rift Arena developer'; return t; };
   function setInput(on) { $('say').disabled = !on; $('sendBtn').disabled = !on; if (on) $('say').placeholder = `Message #${chanName(cur)}`; }
   const chanName = id => (channels.find(c => c.id === id) || { name: id }).name;
   function on(m) {
@@ -118,7 +122,7 @@ const Chat = (() => {
     const row = el('div', 'msg' + (cont ? ' cont' : '') + (m.u === me ? ' me' : '')); row.style.setProperty('--hc', h.c); row.dataset.u = m.u; row.dataset.at = m.at; row.dataset.name = m.name;
     const av = el('img', 'av'); av.src = pic(m.hero); av.alt = '';
     row.append(av);
-    if (!cont) { const who = el('div', 'who'); who.append(el('b', null, m.name), el('time', null, clock(m.at))); who.title = new Date(m.at).toLocaleString(); row.append(who); }
+    if (!cont) { const who = el('div', 'who'); who.append(el('b', null, m.name)); if (m.role === 'dev') who.append(devTag()); who.append(el('time', null, clock(m.at))); who.title = new Date(m.at).toLocaleString(); row.append(who); }
     row.append(el('p', null, m.text));
     const acts = el('div', 'acts');
     if (m.u !== me) { const f = el('button', null, 'Flag'); f.type = 'button'; f.title = 'Report this message to a moderator'; f.onclick = () => { send({ t: 'flag', ch: cur, id: m.id }); f.disabled = true; f.textContent = 'Flagged'; }; acts.append(f); }
@@ -141,7 +145,7 @@ const Chat = (() => {
     for (const p of list) {
       const r = el('div', 'person' + (p.id === me ? ' me' : '')); r.style.setProperty('--hc', (HEROES[p.hero] || HEROES[0]).c);
       const av = el('img', 'av'); av.src = pic(p.hero); av.alt = '';
-      r.append(av, el('b', null, p.name)); box.append(r);
+      r.append(av, el('b', null, p.name)); if (p.role === 'dev') r.append(devTag()); box.append(r);
     }
     if (!list.length) box.append(el('p', 'sys', 'Nobody here yet.'));
   }
@@ -157,17 +161,23 @@ const Chat = (() => {
       box.append(b);
     });
     setTimeout(() => $('nick').focus(), 50);
+    const al = $('acLogin'); if (al) al.onclick = async () => {
+      const n = $('acName').value.trim(), pw = $('acPass').value;
+      try { const r = await api('/api/account/login', { method: 'POST', body: JSON.stringify({ name: n, password: pw }) }); store.set('acct', r.token); $('acPass').value = ''; myHero = pickHero; store.set('hero', myHero); send(joinMsg(r.name)); }
+      catch (x) { $('joinErr').textContent = x.message || 'Wrong name or password.'; $('joinErr').hidden = false; }
+    };
   }
   $('joinForm').onsubmit = e => {
     e.preventDefault(); const n = $('nick').value.trim();
     if (n.length < 3) { $('joinErr').textContent = 'Your nickname needs at least 3 letters.'; $('joinErr').hidden = false; return; }
-    $('joinErr').hidden = true; myHero = pickHero; store.set('hero', myHero); renderRoster(); send({ t: 'join', name: n, hero: myHero, ch: cur });
+    $('joinErr').hidden = true; myHero = pickHero; store.set('hero', myHero); renderRoster(); send(joinMsg(n));
   };
   $('composer').onsubmit = e => { e.preventDefault(); const t = $('say').value.trim(); if (!t) return; send({ t: 'say', text: t }); $('say').value = ''; };
   $('chSelect').onchange = e => switchTo(e.target.value);
   return {
     open() { if (opened) return; opened = true; connect(); },
-    setHero(i) { if (joined) send({ t: 'join', name: myName, hero: i, ch: cur }); },
+    setHero(i) { if (joined) { myHero = i; send(joinMsg(myName)); } },
+    rejoin() { if (ws && ws.readyState === 1) send(joinMsg(myName || 'Player')); },
     rerender() { send({ t: 'channel', ch: cur }); },
   };
 })();
@@ -257,8 +267,12 @@ const Staff = (() => {
   let key = '', all = [], filter = 'active';
   const F = { active: 'Needs work', open: 'New', investigating: 'Investigating', fixed: 'Fixed', closed: 'Closed', all: 'All' };
   async function load() {
-    try { all = (await api('/api/admin/reports', { headers: { 'x-admin-token': key } })).reports; $('admErr').hidden = true; $('desk').hidden = false; render(); }
-    catch (x) { $('admErr').textContent = x.message; $('admErr').hidden = false; key = ''; S.key = ''; }
+    const btn = document.querySelector('#admForm button'), ok = $('admOk');
+    if (btn) { btn.disabled = true; btn.textContent = 'Opening... (can take up to a minute)'; } if (ok) ok.hidden = true; $('admErr').hidden = true;
+    try { all = (await api('/api/admin/reports', { headers: { 'x-admin-token': key } })).reports; $('admErr').hidden = true; $('desk').hidden = false; render(); devs(); if (typeof Chat !== 'undefined' && Chat.rejoin) Chat.rejoin();
+      if (ok) { ok.textContent = '\u2713 You are logged in as the owner. ' + all.length + (all.length === 1 ? ' ticket' : ' tickets') + ' so far. The Developers box is right below.'; ok.hidden = false; } }
+    catch (x) { $('admErr').textContent = (x && x.message) || 'Could not reach the server. Wait a minute and try again.'; $('admErr').hidden = false; $('desk').hidden = true; if ($('devBox')) $('devBox').hidden = true; key = ''; S.key = ''; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Open desk'; }
   }
   function render() {
     const fb = $('filters'); fb.textContent = '';
@@ -281,7 +295,14 @@ const Staff = (() => {
       act.append(sel, note, save); c.append(act); box.append(c);
     }
   }
-  $('admForm').onsubmit = e => { e.preventDefault(); key = $('admKey').value; S.key = key; try { sessionStorage.setItem('rift_admin', key); } catch (x) { /* ok */ } load(); };
+  // Developers: give or remove the Developer role (Developer title, DEV tag and Developer skins in the game)
+  async function devs() {
+    const box = $('devBox'); if (!box) return; box.hidden = false;
+    try { const r = await api('/api/admin/devs', { headers: { 'x-admin-token': key } }); $('devList').textContent = r.devs.length ? 'Developers: ' + r.devs.join(', ') : 'No developer accounts yet.'; } catch (x) { $('devList').textContent = x.message; }
+  }
+  const setRole = async role => { const n = $('devName').value.trim(); if (!n) return; try { const r = await api('/api/admin/role', { method: 'POST', headers: { 'x-admin-token': key }, body: JSON.stringify({ name: n, role }) }); toast(r.name + (r.role ? ' is now a Developer' : ' is no longer a Developer')); $('devName').value = ''; devs(); } catch (x) { toast(x.message || 'Could not change that account.'); } };
+  if ($('devGive')) { $('devGive').onclick = () => setRole('dev'); $('devTake').onclick = () => setRole(''); }
+  $('admForm').onsubmit = e => { e.preventDefault(); key = $('admKey').value.trim(); S.key = key; try { sessionStorage.setItem('rift_admin', key); } catch (x) { /* ok */ } load(); };
   const S = {
     key: '',
     async chat(body) { try { const r = await api('/api/admin/chat', { method: 'POST', headers: { 'x-admin-token': S.key }, body: JSON.stringify(body) }); toast(body.action === 'mute' ? `Muted (${r.muted} connection${r.muted === 1 ? '' : 's'}).` : 'Message deleted.'); } catch (x) { toast(x.message); } },

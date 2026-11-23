@@ -13,6 +13,8 @@
 //   GET  /api/account/save     (auth)                   -> {save, at}
 //   PUT  /api/account/save     (auth) {save}            -> {at}
 //   GET  /api/ranked/top                                 -> {season, players: [...top 50]}
+//   Roles: an account can be a Developer (role 'dev'): Developer title, DEV tag, Developer skins. Only the server owner
+//   (ADMIN_TOKEN, see community.js /api/admin/role) can give or remove it.
 //   auth = header  Authorization: Bearer <token>
 //
 // Stored in DATA_DIR/accounts.json. On Render's free plan that folder is wiped when the server restarts, so for a
@@ -111,14 +113,14 @@ async function handle(req, res, p, ip, allow, sec) {
       const lc = name.toLowerCase(); if (DB.users[lc]) return J(409, { error: 'That name is taken. Try another one.' }), true;
       const salt = crypto.randomBytes(16).toString('hex'), rec = recoveryCode();
       const u = newUser(name, salt, await scrypt(pw, salt), await scrypt(rec, salt)); DB.users[lc] = u;
-      return J(201, { token: session(lc), name, recovery: rec, rank: rankInfo(u) }), true;
+      return J(201, { token: session(lc), name, recovery: rec, rank: rankInfo(u), role: '' }), true;
     }
     if (p === '/api/account/login' && req.method === 'POST') {
       if (!allow('login:' + ip, 20, 900e3)) return J(429, { error: 'Too many tries. Wait 15 minutes and try again.' }), true;
       const b = await body(req, 4096), lc = String(b.name || '').trim().toLowerCase(), u = DB.users[lc];
       const h = u ? await scrypt(String(b.password || ''), u.salt) : await scrypt('x', 'pad'); // same work either way
       if (!u || !eq(h, u.hash)) return J(401, { error: 'Wrong name or password.' }), true;
-      return J(200, { token: session(lc), name: u.name, rank: rankInfo(u) }), true;
+      return J(200, { token: session(lc), name: u.name, rank: rankInfo(u), role: u.role || '' }), true;
     }
     if (p === '/api/account/reset' && req.method === 'POST') {
       if (!allow('reset:' + ip, 10, 3600e3)) return J(429, { error: 'Too many tries. Try again in an hour.' }), true;
@@ -135,7 +137,7 @@ async function handle(req, res, p, ip, allow, sec) {
     const u = userFromToken(bearer(req));
     if (!u) return J(401, { error: 'Please log in again.' }), true;
     if (p === '/api/account/logout' && req.method === 'POST') { delete DB.sessions[sha(bearer(req))]; store(); return J(200, { ok: true }), true; }
-    if (p === '/api/account/me' && req.method === 'GET') return J(200, { name: u.name, rank: rankInfo(u) }), true;
+    if (p === '/api/account/me' && req.method === 'GET') return J(200, { name: u.name, rank: rankInfo(u), role: u.role || '' }), true;
     if (p === '/api/account/save' && req.method === 'GET') return J(200, { save: u.save, at: u.saveAt }), true;
     if (p === '/api/account/save' && req.method === 'PUT') {
       if (!allow('save:' + u.name, 30, 600e3)) return J(429, { error: 'Saving too often.' }), true;
@@ -148,4 +150,8 @@ async function handle(req, res, p, ip, allow, sec) {
   } catch (e) { return J(400, { error: 'That request could not be read. Please try again.' }), true; }
 }
 
-module.exports = { handle, userFromToken, applyResult, rankInfo, tierOf, TIERS, saveSoon: store, flush };
+const ROLES = ['dev'];
+function setRole(name, role) { const u = DB.users[String(name || '').trim().toLowerCase()]; if (!u) return null; if (ROLES.includes(role)) u.role = role; else delete u.role; store(); return { name: u.name, role: u.role || '' }; }
+const devList = () => Object.values(DB.users).filter(u => u.role === 'dev').map(u => u.name);
+const isDevName = name => { const u = DB.users[String(name || '').toLowerCase()]; return !!(u && u.role === 'dev'); };
+module.exports = { setRole, devList, isDevName, handle, userFromToken, applyResult, rankInfo, tierOf, TIERS, saveSoon: store, flush };

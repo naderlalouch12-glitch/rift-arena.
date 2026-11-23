@@ -119,6 +119,11 @@
       <div class="pick" id="heroPick"></div>
       <p class="err" id="joinErr" hidden></p>
       <button class="btn primary wide">Enter chat</button>
+      <details class="acct"><summary>Have a Rift Arena account? Chat with it</summary>
+        <label for="acName">Account name</label><input id="acName" maxlength="16" autocomplete="username">
+        <label for="acPass">Password</label><input id="acPass" type="password" autocomplete="current-password">
+        <button type="button" class="btn wide" id="acLogin">Log in and enter chat</button>
+      </details>
     </form>
   </div>
 </section>
@@ -219,6 +224,13 @@
       <button class="btn primary">Open desk</button>
     </form>
     <p class="err" id="admErr" hidden></p>
+    <p class="okmsg" id="admOk" hidden></p>
+    <div id="devBox" class="devbox" hidden>
+      <h3>Developers</h3>
+      <p class="muted">Developer accounts get the Developer title, a DEV tag and the Developer skins in the game, and a DEV badge here in chat. Type a game account name:</p>
+      <div class="devrow"><input id="devName" maxlength="16" placeholder="Account name"><button type="button" class="btn primary" id="devGive">Make Developer</button><button type="button" class="btn" id="devTake">Remove</button></div>
+      <p class="muted" id="devList"></p>
+    </div>
     <div id="desk" hidden>
       <div class="filters" id="filters"></div>
       <div id="deskList"></div>
@@ -232,6 +244,7 @@
     <span>© Rift Arena</span>
     <span>Be kind · Stay safe · Have fun</span>
     <a href="#staff">Team login</a>
+    <span class="ver">Site version 23 Nov</span>
   </div>
 </footer>
 <div class="toast" id="toast" role="status" hidden></div>

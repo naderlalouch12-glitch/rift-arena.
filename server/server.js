@@ -52,7 +52,7 @@ function startMatch(mode, players) {
   sorted.forEach((p, i) => { p.team = MODES[mode].teams ? SNAKE[i % 4] : null; });
   for (const p of players) { p.room = room; p.queued = null; room.players.set(p.peer, p); }
   rooms.set(id, room);
-  const roster = players.map(p => ({ peer: p.peer, name: p.name, lv: p.lv, team: p.team, hero: p.hero, rank: p.user ? accounts.rankInfo(p.user).tier : undefined }));
+  const roster = players.map(p => ({ peer: p.peer, name: p.name, lv: p.lv, team: p.team, hero: p.hero, rank: p.user && MODES[mode].ranked ? accounts.rankInfo(p.user).tier : undefined, dev: p.user && p.user.role === 'dev' ? 1 : undefined }));
   for (const p of players) send(p.ws, { t: 'match', room: id, mode, ranked: room.ranked, you: p.peer, seed, start: Date.now() + 1500, roster });
 }
 // Ranked results are decided here on the server: it counts the knockouts each player reports about themselves,
@@ -101,8 +101,8 @@ wss.on('connection', ws => {
     let m; try { m = JSON.parse(raw); } catch (e) { return; } if (!m || typeof m !== 'object') return;
     if (m.t === 'queue') {
       if (!MODES[m.mode] || m.v !== VERSION) return send(ws, { t: 'error', msg: 'Please update the game to play online.' });
-      let user = null;
-      if (MODES[m.mode].ranked) { user = accounts.userFromToken(m.token); if (!user) return send(ws, { t: 'error', code: 'login', msg: 'Log in to your Rift Arena account to play Ranked.' }); }
+      let user = m.token ? accounts.userFromToken(m.token) : null; // logged-in players use their account name (and Developers get the DEV tag)
+      if (MODES[m.mode].ranked && !user) return send(ws, { t: 'error', code: 'login', msg: 'Log in to your Rift Arena account to play Ranked.' });
       leaveRoom(p); leaveQueue(p);
       p.name = user ? user.name : clean(m.name); p.lv = Math.max(1, Math.min(999, Math.floor(+m.lv) || 1)); p.hero = Math.max(0, Math.min(9, Math.floor(+m.hero) || 0));
       p.user = user; p.rp = user ? user.rp : 0; p.t0 = Date.now();

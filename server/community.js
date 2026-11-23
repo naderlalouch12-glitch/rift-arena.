@@ -8,6 +8,8 @@
 //   Admin (header  x-admin-token: $ADMIN_TOKEN; disabled when ADMIN_TOKEN is not set):
 //   GET  /api/admin/reports    every ticket      PATCH /api/admin/reports/:id {status, note}
 //   POST /api/admin/chat       {action:'delete', channel, id} | {action:'mute', user, minutes}
+//   POST /api/admin/role       {name, role:'dev'|''}   give or remove the Developer role of a game account
+//   GET  /api/admin/devs       every Developer account
 //
 // Everything is stored in ./data (reports.json, chat.json, uploads/). Chat is built for players
 // of every age: links, phone numbers and e-mail addresses are blocked, bad words are masked,
@@ -73,7 +75,7 @@ const muted = new Map(); // ipHash -> until (ms)
 const wss = new WebSocketServer({ noServer: true, maxPayload: 2048 });
 const people = new Map(); // ws -> { id, name, hero, ch, ip }
 const send = (ws, o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
-function roster(ch) { return [...people.values()].filter(p => p.name && p.ch === ch).map(p => ({ id: p.id, name: p.name, hero: p.hero })); }
+function roster(ch) { return [...people.values()].filter(p => p.name && p.ch === ch).map(p => ({ id: p.id, name: p.name, hero: p.hero, role: p.role || undefined })); }
 function counts() { const c = {}; for (const ch of CHANNELS) c[ch.id] = 0; for (const p of people.values()) if (p.name && c[p.ch] != null) c[p.ch]++; return c; }
 function broadcast(o, ch) { const s = JSON.stringify(o); for (const [ws, p] of people) if ((!ch || p.ch === ch) && ws.readyState === 1) ws.send(s); }
 let countsT = 0;
@@ -90,12 +92,17 @@ wss.on('connection', (ws, req) => {
     if (!allow('msg:' + me.id, 25, 10e3)) return;
     let m; try { m = JSON.parse(raw); } catch (e) { return; } if (!m || typeof m !== 'object') return;
     if (m.t === 'join') {
-      const name = cleanName(m.name);
+      // optional: chat as your game account (verified name; Developers get the DEV badge). The site owner's admin key also counts as Developer.
+      const acct = m.token ? accounts.userFromToken(String(m.token)) : null;
+      const owner = !!(ADMIN && m.admin && crypto.timingSafeEqual(crypto.createHash('sha256').update(String(m.admin)).digest(), crypto.createHash('sha256').update(ADMIN).digest()));
+      const name = acct ? acct.name : cleanName(m.name);
       if (!name) return send(ws, { t: 'error', code: 'name', msg: 'Pick a name with 3 to 16 letters or numbers (no bad words).' });
+      if (!acct && !owner && accounts.isDevName(name)) return send(ws, { t: 'error', code: 'name', msg: 'That name belongs to a Rift Arena developer. Pick another one.' });
+      me.role = (acct && acct.role === 'dev') || owner ? 'dev' : '';
       const taken = [...people.values()].some(p => p !== me && p.name && p.name.toLowerCase() === name.toLowerCase());
       if (taken) return send(ws, { t: 'error', code: 'name', msg: 'Someone online is already using that name. Try another one.' });
       me.name = name; me.hero = Math.max(0, Math.min(4, m.hero | 0));
-      send(ws, { t: 'joined', name, hero: me.hero });
+      send(ws, { t: 'joined', name, hero: me.hero, role: me.role });
       switchTo(ws, me, CHANNELS.some(c => c.id === m.ch) ? m.ch : 'global');
     } else if (m.t === 'channel' && me.name && CHANNELS.some(c => c.id === m.ch)) switchTo(ws, me, m.ch);
     else if (m.t === 'say' && me.name) {
@@ -107,7 +114,7 @@ wss.on('connection', (ws, req) => {
       if (CONTACT.test(text)) return send(ws, { t: 'error', code: 'contact', msg: 'For your safety, phone numbers and e-mail addresses are blocked. Never share personal info.' });
       const last = chat[me.ch].filter(x => x.u === me.id).slice(-1)[0];
       if (last && last.text === mask(text) && Date.now() - last.at < 30e3) return send(ws, { t: 'error', code: 'spam', msg: 'You just sent that message.' });
-      const msg = { id: crypto.randomBytes(6).toString('hex'), u: me.id, name: me.name, hero: me.hero, text: mask(text), at: Date.now() };
+      const msg = { id: crypto.randomBytes(6).toString('hex'), u: me.id, name: me.name, hero: me.hero, text: mask(text), at: Date.now(), role: me.role || undefined };
       chat[me.ch].push(msg); if (chat[me.ch].length > HIST) chat[me.ch].shift(); save('chat.json', chat);
       broadcast({ t: 'msg', ch: me.ch, msg }, me.ch);
     } else if (m.t === 'flag' && me.name && typeof m.id === 'string') {
@@ -208,6 +215,8 @@ async function handle(req, res, stats) {
         if (b.note) r.notes.push({ at: Date.now(), text: String(b.note).slice(0, 1000), public: b.public !== false });
         r.updated = Date.now(); save('reports.json', reports); return json(res, 200, { ok: true });
       }
+      if (p === '/api/admin/role' && req.method === 'POST') { const b = await body(req, 1e4), r = accounts.setRole(b.name, b.role === 'dev' ? 'dev' : ''); if (!r) return json(res, 404, { error: 'No game account has that name.' }); return json(res, 200, r); }
+      if (p === '/api/admin/devs' && req.method === 'GET') return json(res, 200, { devs: accounts.devList() });
       if (p === '/api/admin/chat' && req.method === 'POST') {
         const b = await body(req, 1e4);
         if (b.action === 'delete' && chat[b.channel]) { chat[b.channel] = chat[b.channel].filter(x => x.id !== b.id); save('chat.json', chat); broadcast({ t: 'deleted', ch: b.channel, id: b.id }); return json(res, 200, { ok: true }); }
