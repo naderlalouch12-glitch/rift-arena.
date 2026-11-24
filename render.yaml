@@ -20,5 +20,11 @@ services:
     envVars:
       - key: ADMIN_TOKEN        # your key for the Team login (ticket desk + chat moderation). Render makes a random one; find it under Environment.
         generateValue: true
+      - key: DEV_NAMES          # account names that are always Developers, separated by commas (example: MyName,MyFriend)
+        sync: false
+      - key: STORE_URL          # FREE backup so accounts survive restarts: the REST URL of a free Upstash Redis database
+        sync: false
+      - key: STORE_TOKEN        # ...and its REST token (keep it secret)
+        sync: false
       - key: TRUST_PROXY        # Render sits in front of the server, so trust its forwarded IP for rate limits
         value: "1"

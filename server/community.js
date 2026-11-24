@@ -29,7 +29,8 @@ const TRUST_PROXY = !!process.env.TRUST_PROXY; // set when running behind Render
 // ---------------------------------------------------------------- storage
 function load(f, d) { try { return JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8')); } catch (e) { return d; } }
 const pending = new Map(); // file -> latest value waiting to be written
-const writeFile = (f, v) => { const tmp = path.join(DATA, f + '.tmp'); fs.writeFileSync(tmp, JSON.stringify(v)); fs.renameSync(tmp, path.join(DATA, f)); };
+const cloud = require('./cloudstore');
+const writeFile = (f, v) => { const tmp = path.join(DATA, f + '.tmp'); fs.writeFileSync(tmp, JSON.stringify(v)); fs.renameSync(tmp, path.join(DATA, f)); cloud.pushFile(f, v); };
 function save(f, v) {
   const had = pending.has(f); pending.set(f, v); if (had) return;
   setTimeout(() => { if (!pending.has(f)) return; const val = pending.get(f); pending.delete(f); writeFile(f, val); }, 400);
@@ -167,7 +168,7 @@ function serveFile(req, res, file) {
     if (err || !st.isFile()) { if (!path.extname(rel)) return serveFile(req, res, 'index.html'); return json(res, 404, { error: 'not found' }); }
     const type = TYPES[path.extname(full).toLowerCase()] || 'application/octet-stream';
     const range = req.headers.range && /bytes=(\d*)-(\d*)/.exec(req.headers.range);
-    const h = { 'content-type': type, 'cache-control': type.startsWith('text/html') ? 'no-cache' : 'public, max-age=3600', 'accept-ranges': 'bytes', ...SEC };
+    const h = { 'content-type': type, 'cache-control': /^text\/html|javascript|^text\/css/.test(type) ? 'no-cache' : 'public, max-age=3600', 'accept-ranges': 'bytes', ...SEC };
     if (range && type === 'video/mp4') {
       const a = range[1] ? +range[1] : 0, b = range[2] ? Math.min(+range[2], st.size - 1) : st.size - 1;
       res.writeHead(206, { ...h, 'content-range': `bytes ${a}-${b}/${st.size}`, 'content-length': b - a + 1 }); fs.createReadStream(full, { start: a, end: b }).pipe(res);

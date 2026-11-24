@@ -61,11 +61,16 @@ function applyResult(u, win, o = {}) {
   return { delta: rp - before, promoted: t1 > t0, demoted: t1 < t0, ...rankInfo(u) };
 }
 
+// DEV_NAMES (optional environment variable): account names that are always Developers, e.g. DEV_NAMES=MyName,MyFriend
+// Handy on a free server: the Developer role comes back by itself as soon as that account exists again.
+const DEV_NAMES = new Set(String(process.env.DEV_NAMES || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean));
+function autoDev(u) { if (u && DEV_NAMES.has(String(u.name).toLowerCase()) && u.role !== 'dev') { u.role = 'dev'; store(); } return u; }
 // ---------------------------------------------------------------- storage
 let DB = { users: {}, sessions: {} };
 try { DB = JSON.parse(fs.readFileSync(FILE, 'utf8')); DB.users = DB.users || {}; DB.sessions = DB.sessions || {}; } catch (e) { /* first run */ }
 let saveT = 0;
-function write() { const tmp = FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(DB)); fs.renameSync(tmp, FILE); }
+const cloud = require('./cloudstore'); // free cloud backup (optional), so accounts survive server restarts
+function write() { const tmp = FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(DB)); fs.renameSync(tmp, FILE); cloud.syncAccounts(DB); }
 function store() { if (saveT) return; saveT = setTimeout(() => { saveT = 0; write(); }, 500); }
 function flush() { if (saveT) { clearTimeout(saveT); saveT = 0; write(); } }
 setInterval(() => { const now = Date.now(); let n = 0; for (const k in DB.sessions) if (DB.sessions[k].exp < now) { delete DB.sessions[k]; n++; } if (n) store(); }, 3600e3).unref();
@@ -112,14 +117,15 @@ async function handle(req, res, p, ip, allow, sec) {
       if (pw.length < 8 || pw.length > 100) return J(400, { error: 'Your password needs at least 8 characters.' }), true;
       const lc = name.toLowerCase(); if (DB.users[lc]) return J(409, { error: 'That name is taken. Try another one.' }), true;
       const salt = crypto.randomBytes(16).toString('hex'), rec = recoveryCode();
-      const u = newUser(name, salt, await scrypt(pw, salt), await scrypt(rec, salt)); DB.users[lc] = u;
-      return J(201, { token: session(lc), name, recovery: rec, rank: rankInfo(u), role: '' }), true;
+      const u = newUser(name, salt, await scrypt(pw, salt), await scrypt(rec, salt)); DB.users[lc] = u; autoDev(u);
+      return J(201, { token: session(lc), name, recovery: rec, rank: rankInfo(u), role: u.role || '' }), true;
     }
     if (p === '/api/account/login' && req.method === 'POST') {
       if (!allow('login:' + ip, 20, 900e3)) return J(429, { error: 'Too many tries. Wait 15 minutes and try again.' }), true;
       const b = await body(req, 4096), lc = String(b.name || '').trim().toLowerCase(), u = DB.users[lc];
       const h = u ? await scrypt(String(b.password || ''), u.salt) : await scrypt('x', 'pad'); // same work either way
       if (!u || !eq(h, u.hash)) return J(401, { error: 'Wrong name or password.' }), true;
+      autoDev(u);
       return J(200, { token: session(lc), name: u.name, rank: rankInfo(u), role: u.role || '' }), true;
     }
     if (p === '/api/account/reset' && req.method === 'POST') {
